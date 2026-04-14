@@ -28,21 +28,38 @@ const GAME_TYPES = [
 // ══════════════════════════════════════════
 // simple round:     { scores: [n,n,n,n] }
 // tournament round: { callers, gameType, slagen, callerResults, result, scores }
+// Game object:      { id, name, mode, playerNames, rounds }
 let state = {
   theme: 'system',
-  mode: 'simple', // 'simple' | 'tournament'
-  simple: {
-    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
-    rounds: [],
-  },
-  tournament: {
-    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
-    rounds: [],
-  },
+  activeGameId: null,
+  games: [],
 };
 
-// Returns the data object for the currently active mode
-function modeState() { return state[state.mode]; }
+function genId() {
+  return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+}
+
+function createNewGame(mode) {
+  return {
+    id: genId(),
+    name: 'Game ' + (state.games.length + 1),
+    mode: mode || 'tournament',
+    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
+    rounds: [],
+  };
+}
+
+function activeGame() {
+  return state.games.find(g => g.id === state.activeGameId) || state.games[0] || null;
+}
+
+function currentMode() {
+  const g = activeGame();
+  return g ? g.mode : 'tournament';
+}
+
+// Returns the data object for the active game
+function modeState() { return activeGame(); }
 
 // Simple-mode sheet state
 let editingRound  = -1;
@@ -81,7 +98,7 @@ function shortName(n) {
 
 /** True when a round has had its result fully entered. */
 function isRoundComplete(rd) {
-  if (state.mode !== 'tournament') return true;
+  if (currentMode() !== 'tournament') return true;
   const gt = getGameType(rd.gameType);
   if (!gt) return rd.slagen !== null;
   if (gt.inputMode === 'wl') {
@@ -232,21 +249,72 @@ function saveState() {
   try { localStorage.setItem('whist_state', JSON.stringify(state)); } catch (e) {}
 }
 
+function initFreshState() {
+  const game = createNewGame('tournament');
+  game.name = 'Game 1';
+  state.games = [game];
+  state.activeGameId = game.id;
+}
+
 function loadState() {
   try {
     const s = localStorage.getItem('whist_state');
-    if (!s) return;
+    if (!s) { initFreshState(); return; }
     const saved = JSON.parse(s);
-    // Migrate old flat structure (playerNames/rounds at top level)
-    if (saved.playerNames || saved.rounds) {
-      state.mode = saved.mode || 'simple';
-      state.theme = saved.theme || 'system';
-      state[state.mode].playerNames = saved.playerNames || state[state.mode].playerNames;
-      state[state.mode].rounds      = saved.rounds      || [];
-    } else {
-      state = { ...state, ...saved };
+
+    // Already in new multi-game format
+    if (saved.games && Array.isArray(saved.games)) {
+      state.theme      = saved.theme      || 'system';
+      state.games      = saved.games;
+      state.activeGameId = saved.activeGameId || (saved.games[0] && saved.games[0].id) || null;
+      if (!state.games.length) initFreshState();
+      return;
     }
-  } catch (e) {}
+
+    // ── Migrate old format ──────────────────────────────────────────────
+    state.theme = saved.theme || 'system';
+    const games = [];
+
+    // Very old flat format: playerNames/rounds at top level
+    if (saved.playerNames || saved.rounds) {
+      const game = createNewGame(saved.mode || 'simple');
+      game.name = 'Game 1';
+      game.playerNames = saved.playerNames || game.playerNames;
+      game.rounds      = saved.rounds      || [];
+      games.push(game);
+    }
+
+    // Newer format: state.simple / state.tournament sub-objects
+    if ((saved.simple || saved.tournament) && games.length === 0) {
+      const activeMode = saved.mode || 'tournament';
+      ['tournament', 'simple'].forEach(mode => {
+        const data = saved[mode];
+        if (data && data.rounds && data.rounds.length > 0) {
+          const game = createNewGame(mode);
+          game.name = games.length === 0 ? 'Game 1' : 'Game 2';
+          game.playerNames = data.playerNames || game.playerNames;
+          game.rounds      = data.rounds;
+          games.push(game);
+        } else if (data && mode === activeMode) {
+          // Active mode even if empty
+          const game = createNewGame(mode);
+          game.name = 'Game 1';
+          game.playerNames = data.playerNames || game.playerNames;
+          game.rounds      = data.rounds || [];
+          games.push(game);
+        }
+      });
+    }
+
+    if (games.length === 0) {
+      initFreshState();
+    } else {
+      state.games = games;
+      const activeMode = saved.mode || 'tournament';
+      const match = games.find(g => g.mode === activeMode) || games[0];
+      state.activeGameId = match.id;
+    }
+  } catch (e) { initFreshState(); }
 }
 
 // ══════════════════════════════════════════
@@ -306,7 +374,7 @@ function renderAll() {
 
 function renderHeader() {
   const header       = document.getElementById('playerHeader');
-  const isTournament = state.mode === 'tournament';
+  const isTournament = currentMode() === 'tournament';
   header.innerHTML   = '<div class="player-header-cell"></div>';
 
   if (isTournament) {
@@ -353,7 +421,7 @@ function renderRows() {
   const container    = document.getElementById('roundRows');
   container.innerHTML = '';
   const { runningPerRound } = getRunningTotals();
-  const isTournament = state.mode === 'tournament';
+  const isTournament = currentMode() === 'tournament';
 
   for (let r = 0; r < TOTAL_ROUNDS; r++) {
     const row      = document.createElement('div');
@@ -533,7 +601,7 @@ function renderRows() {
 function renderTotals() {
   const { totals }   = getRunningTotals();
   const totalRow      = document.getElementById('totalRow');
-  const isTournament  = state.mode === 'tournament';
+  const isTournament  = currentMode() === 'tournament';
   totalRow.innerHTML  = '<div class="total-cell"></div>';
 
   if (isTournament) {
@@ -880,10 +948,16 @@ function saveNames() {
 // ══════════════════════════════════════════
 function newGame()   { openOverlay('confirmOverlay'); }
 function doNewGame() {
-  modeState().rounds = [];
+  const cur     = activeGame();
+  const newGame = createNewGame(cur ? cur.mode : 'tournament');
+  if (cur) newGame.playerNames = [...cur.playerNames];
+  state.games.push(newGame);
+  state.activeGameId = newGame.id;
   saveState();
   closeOverlay('confirmOverlay');
+  applyMode(currentMode());
   renderAll();
+  renderSidebar();
 }
 
 // ══════════════════════════════════════════
@@ -1175,12 +1249,158 @@ function confirmWL() {
 }
 
 // ══════════════════════════════════════════
+//  SIDEBAR — GAME HISTORY
+// ══════════════════════════════════════════
+function openSidebar() {
+  renderSidebar();
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
+function renderSidebar() {
+  const list = document.getElementById('sidebarList');
+  list.innerHTML = '';
+
+  state.games.forEach(game => {
+    const isActive       = game.id === state.activeGameId;
+    const completedRounds = game.mode === 'tournament'
+      ? game.rounds.filter(r => {
+          if (!r.gameType) return false;
+          const gt = getGameType(r.gameType);
+          if (!gt) return r.slagen !== null;
+          if (gt.inputMode === 'wl') return r.callerResults && (r.callers||[]).every(c => r.callerResults[c] !== undefined);
+          return r.slagen !== null;
+        }).length
+      : game.rounds.length;
+
+    const item       = document.createElement('div');
+    item.className   = 'sidebar-game' + (isActive ? ' active' : '');
+    item.dataset.id  = game.id;
+
+    item.addEventListener('click', e => {
+      if (e.target.closest('.sidebar-game-delete') ||
+          e.target.closest('.sidebar-game-name-wrap')) return;
+      switchToGame(game.id);
+    });
+
+    // Info block
+    const info       = document.createElement('div');
+    info.className   = 'sidebar-game-info';
+
+    const nameWrap       = document.createElement('div');
+    nameWrap.className   = 'sidebar-game-name-wrap';
+
+    const nameEl         = document.createElement('span');
+    nameEl.className     = 'sidebar-game-name';
+    nameEl.textContent   = game.name;
+    nameEl.title         = 'Tap to rename';
+    nameEl.addEventListener('click', e => {
+      e.stopPropagation();
+      startRenameGame(game.id, nameWrap);
+    });
+
+    nameWrap.appendChild(nameEl);
+
+    const meta         = document.createElement('div');
+    meta.className     = 'sidebar-game-meta';
+    meta.textContent   = completedRounds + ' / 16 rounds';
+
+    info.appendChild(nameWrap);
+    info.appendChild(meta);
+
+    // Mode badge
+    const badge       = document.createElement('span');
+    badge.className   = 'sidebar-game-badge ' + (game.mode === 'tournament' ? 'badge-w' : 'badge-m');
+    badge.textContent = game.mode === 'tournament' ? 'Whist' : 'Manual';
+
+    // Delete button
+    const del       = document.createElement('button');
+    del.className   = 'sidebar-game-delete';
+    del.title       = 'Delete game';
+    del.innerHTML   = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 3h12M5 3V2h4v1M3 3l1 9h6l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteGame(game.id); });
+
+    if (state.games.length <= 1) {
+      del.disabled    = true;
+      del.style.opacity = '0.3';
+      del.title       = 'Cannot delete the only game';
+    }
+
+    item.appendChild(info);
+    item.appendChild(badge);
+    item.appendChild(del);
+    list.appendChild(item);
+  });
+}
+
+function switchToGame(gameId) {
+  state.activeGameId = gameId;
+  applyMode(currentMode());
+  saveState();
+  renderAll();
+  closeSidebar();
+}
+
+function startRenameGame(gameId, nameWrap) {
+  const game = state.games.find(g => g.id === gameId);
+  if (!game) return;
+
+  const input       = document.createElement('input');
+  input.className   = 'sidebar-game-name-input';
+  input.value       = game.name;
+  input.maxLength   = 30;
+  nameWrap.innerHTML = '';
+  nameWrap.appendChild(input);
+  input.focus();
+  input.select();
+
+  const save = () => {
+    const val = input.value.trim();
+    if (val) game.name = val;
+    saveState();
+    renderSidebar();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  input.blur();
+    if (e.key === 'Escape') { game.name = game.name; renderSidebar(); }
+  });
+}
+
+function deleteGame(gameId) {
+  if (state.games.length <= 1) return;
+  const wasActive = state.activeGameId === gameId;
+  state.games = state.games.filter(g => g.id !== gameId);
+  if (wasActive) {
+    state.activeGameId = state.games[0].id;
+    applyMode(currentMode());
+    renderAll();
+  }
+  saveState();
+  renderSidebar();
+}
+
+// ══════════════════════════════════════════
 //  EVENT LISTENERS
 // ══════════════════════════════════════════
 
 // Backdrop tap closes sheet
 document.querySelectorAll('.overlay').forEach(ov => {
   ov.addEventListener('click', e => { if (e.target === ov) closeOverlay(ov.id); });
+});
+
+// Sidebar
+document.getElementById('sidebarBtn').addEventListener('click', openSidebar);
+document.getElementById('sidebarCloseBtn').addEventListener('click', closeSidebar);
+document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
+document.getElementById('sidebarNewGameBtn').addEventListener('click', () => {
+  closeSidebar();
+  newGame();
 });
 
 // Header — game selector
@@ -1198,10 +1418,11 @@ document.getElementById('gameSelectorBtn').addEventListener('click', e => {
 document.getElementById('gameSelectorMenu').addEventListener('click', e => {
   const btn = e.target.closest('.game-selector-option');
   if (!btn) return;
-  state.mode = btn.dataset.mode;
-  applyMode(state.mode);
+  activeGame().mode = btn.dataset.mode;
+  applyMode(btn.dataset.mode);
   saveState();
   renderAll();
+  closeSidebar();
   closeGameSelector();
 });
 
@@ -1224,8 +1445,8 @@ document.getElementById('fitBtn').addEventListener('click', () => {
 // Game bar
 document.getElementById('newGameBtn').addEventListener('click', newGame);
 document.getElementById('addRoundBtn').addEventListener('click', () => {
-  if (state.mode === 'tournament') openTournRoundSheet(modeState().rounds.length);
-  else                             openRoundSheet(modeState().rounds.length);
+  if (currentMode() === 'tournament') openTournRoundSheet(modeState().rounds.length);
+  else                                openRoundSheet(modeState().rounds.length);
 });
 
 // Simple round sheet
@@ -1315,5 +1536,5 @@ document.getElementById('slagenCancelBtn').addEventListener('click', () => close
 // ══════════════════════════════════════════
 loadState();
 applyTheme(state.theme);
-applyMode(state.mode);
+applyMode(currentMode());
 renderAll();
