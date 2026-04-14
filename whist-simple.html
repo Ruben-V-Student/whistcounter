@@ -822,12 +822,11 @@
   }
   .slagen-cell {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
     min-height: 52px;
     padding: 4px 2px;
-    gap: 2px;
     cursor: pointer;
   }
   .slagen-val {
@@ -872,11 +871,15 @@
   }
   .result-badge.win  { background: var(--accent-light); color: var(--accent); }
   .result-badge.loss { background: var(--neg-light);    color: var(--neg);    }
+  .result-multi-wrap { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+  .result-badge-mini { width: 14px; height: 12px; font-size: 8px; border-radius: 2px; }
 
   /* Compact overrides for tournament extra cells */
   .compact .game-type-cell { min-height: unset; padding: 1px 2px; }
   .compact .slagen-cell    { min-height: unset; padding: 1px 2px; display: flex; flex-direction: row; align-items: center; justify-content: center; }
   .compact .slagen-val     { font-size: 13px; }
+  .compact .result-multi-wrap { flex-direction: row; }
+  .compact .result-badge-mini { width: 8px; height: 8px; font-size: 0; border-radius: 2px; }
   .compact .result-cell    { min-height: unset; padding: 1px 2px; }
 
   /* ── SLAGEN PICKER OVERLAY ── */
@@ -1512,11 +1515,10 @@ function renderRows() {
             resCell.appendChild(badge);
           } else if (results.length > 1) {
             const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;flex-direction:column;gap:1px;align-items:center';
+            wrap.className = 'result-multi-wrap';
             results.forEach(r2 => {
               const mini = document.createElement('div');
-              mini.className = 'result-badge ' + (r2 === 'W' ? 'win' : 'loss');
-              mini.style.cssText = 'width:14px;height:12px;font-size:8px;border-radius:2px';
+              mini.className = 'result-badge result-badge-mini ' + (r2 === 'W' ? 'win' : 'loss');
               mini.textContent = r2;
               wrap.appendChild(mini);
             });
