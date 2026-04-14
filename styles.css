@@ -84,46 +84,72 @@ body {
 .icon-btn:active { background: var(--surface2); }
 
 /* ══════════════════════════════════════════
-   MODE TOGGLE  (Simple ↔ Tournament)
+   GAME SELECTOR  (pill dropdown)
 ══════════════════════════════════════════ */
-.mode-toggle-wrap {
+.game-selector {
+  position: relative;
+}
+.game-selector-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px 5px 14px;
+  cursor: pointer;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
-.mode-lbl {
+.game-selector-btn:active { background: var(--border); }
+.game-selector-chevron {
+  font-family: 'DM Sans', sans-serif;
   font-size: 11px;
   color: var(--text3);
-  transition: color 0.2s;
-  font-weight: 400;
-}
-.mode-lbl.active { color: var(--text); font-weight: 500; }
-.mode-switch {
-  position: relative;
-  display: inline-block;
-  width: 38px; height: 21px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.mode-switch input { display: none; }
-.mode-track-bar {
-  position: absolute; inset: 0;
-  background: var(--border);
-  border-radius: 11px;
-  transition: background 0.2s;
-}
-.mode-track-bar::after {
-  content: '';
-  position: absolute;
-  width: 15px; height: 15px;
-  border-radius: 50%;
-  background: #fff;
-  top: 3px; left: 3px;
+  margin-top: 1px;
   transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-.mode-switch input:checked + .mode-track-bar { background: var(--accent); }
-.mode-switch input:checked + .mode-track-bar::after { transform: translateX(17px); }
+.game-selector-btn.open .game-selector-chevron { transform: rotate(180deg); }
+.game-selector-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 300;
+  min-width: 140px;
+  display: none;
+}
+.game-selector-menu.open { display: block; }
+.game-selector-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.game-selector-option + .game-selector-option {
+  border-top: 1px solid var(--border);
+}
+.game-selector-option:active { background: var(--surface2); }
+.game-selector-option.active { color: var(--accent); font-weight: 500; }
+.game-selector-check { font-size: 12px; color: var(--accent); }
 
 /* ══════════════════════════════════════════
    MAIN LAYOUT  (3-island)
@@ -277,9 +303,6 @@ body {
   gap: 2px;
 }
 .player-name-short {
-  max-width: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
   font-size: 14px;

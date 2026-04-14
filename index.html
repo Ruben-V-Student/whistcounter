@@ -11,14 +11,19 @@
 
 <!-- ══ HEADER ══ -->
 <div class="header">
-  <div class="header-title">Whist</div>
-  <div class="mode-toggle-wrap">
-    <span class="mode-lbl active" id="simpleModeLabel">Simple</span>
-    <label class="mode-switch">
-      <input type="checkbox" id="modeSwitchInput">
-      <span class="mode-track-bar"></span>
-    </label>
-    <span class="mode-lbl" id="tournModeLabel">Tourn.</span>
+  <div class="game-selector" id="gameSelectorWrap">
+    <button class="game-selector-btn" id="gameSelectorBtn">
+      <span id="gameSelectorTitle">Whist</span>
+      <span class="game-selector-chevron">▾</span>
+    </button>
+    <div class="game-selector-menu" id="gameSelectorMenu">
+      <button class="game-selector-option" data-mode="tournament">
+        Whist <span class="game-selector-check" id="checkTournament"></span>
+      </button>
+      <button class="game-selector-option" data-mode="simple">
+        Manual <span class="game-selector-check" id="checkSimple"></span>
+      </button>
+    </div>
   </div>
   <div class="header-actions">
     <button class="icon-btn fit-btn" id="fitBtn" title="Fit to screen">⊞</button>

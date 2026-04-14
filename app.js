@@ -29,11 +29,20 @@ const GAME_TYPES = [
 // simple round:     { scores: [n,n,n,n] }
 // tournament round: { callers, gameType, slagen, callerResults, result, scores }
 let state = {
-  playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
-  rounds: [],
   theme: 'system',
   mode: 'simple', // 'simple' | 'tournament'
+  simple: {
+    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
+    rounds: [],
+  },
+  tournament: {
+    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
+    rounds: [],
+  },
 };
+
+// Returns the data object for the currently active mode
+function modeState() { return state[state.mode]; }
 
 // Simple-mode sheet state
 let editingRound  = -1;
@@ -67,7 +76,7 @@ function getGameType(id) {
 }
 
 function shortName(n) {
-  return n.length <= 7 ? n : n.slice(0, 6) + '…';
+  return n;
 }
 
 /** True when a round has had its result fully entered. */
@@ -226,7 +235,17 @@ function saveState() {
 function loadState() {
   try {
     const s = localStorage.getItem('whist_state');
-    if (s) state = { ...state, ...JSON.parse(s) };
+    if (!s) return;
+    const saved = JSON.parse(s);
+    // Migrate old flat structure (playerNames/rounds at top level)
+    if (saved.playerNames || saved.rounds) {
+      state.mode = saved.mode || 'simple';
+      state.theme = saved.theme || 'system';
+      state[state.mode].playerNames = saved.playerNames || state[state.mode].playerNames;
+      state[state.mode].rounds      = saved.rounds      || [];
+    } else {
+      state = { ...state, ...saved };
+    }
   } catch (e) {}
 }
 
@@ -248,14 +267,18 @@ function applyTheme(pref) {
 }
 
 // ══════════════════════════════════════════
-//  MODE TOGGLE
+//  GAME SELECTOR
 // ══════════════════════════════════════════
+const GAME_LABELS = { tournament: 'Whist', simple: 'Manual' };
+
 function applyMode(mode) {
-  const isTournament = mode === 'tournament';
-  document.getElementById('simpleModeLabel').classList.toggle('active', !isTournament);
-  document.getElementById('tournModeLabel').classList.toggle('active', isTournament);
-  document.getElementById('modeSwitchInput').checked = isTournament;
-  document.getElementById('scoreTable').classList.toggle('tournament-mode', isTournament);
+  document.getElementById('gameSelectorTitle').textContent = GAME_LABELS[mode] || 'Whist';
+  document.getElementById('checkTournament').textContent = mode === 'tournament' ? '✓' : '';
+  document.getElementById('checkSimple').textContent = mode === 'simple' ? '✓' : '';
+  document.querySelectorAll('.game-selector-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  document.getElementById('scoreTable').classList.toggle('tournament-mode', mode === 'tournament');
 }
 
 // ══════════════════════════════════════════
@@ -264,7 +287,7 @@ function applyMode(mode) {
 function getRunningTotals() {
   const totals = [0, 0, 0, 0];
   const runningPerRound = [];
-  for (const round of state.rounds) {
+  for (const round of modeState().rounds) {
     if (isRoundComplete(round)) {
       for (let i = 0; i < 4; i++) totals[i] += round.scores[i];
     }
@@ -303,8 +326,8 @@ function renderHeader() {
     header.appendChild(resHdr);
   }
 
-  const currentDealer = state.rounds.length % NUM_PLAYERS;
-  state.playerNames.forEach((name, i) => {
+  const currentDealer = modeState().rounds.length % NUM_PLAYERS;
+  modeState().playerNames.forEach((name, i) => {
     const cell    = document.createElement('div');
     cell.className = 'player-header-cell';
     const btn     = document.createElement('button');
@@ -335,8 +358,8 @@ function renderRows() {
   for (let r = 0; r < TOTAL_ROUNDS; r++) {
     const row      = document.createElement('div');
     row.className  = 'round-row';
-    const isFilled  = r < state.rounds.length;
-    const isCurrent = r === state.rounds.length;
+    const isFilled  = r < modeState().rounds.length;
+    const isCurrent = r === modeState().rounds.length;
 
     if (isFilled)       row.classList.add('filled');
     else if (isCurrent) row.classList.add('current');
@@ -353,7 +376,7 @@ function renderRows() {
       const gtCell    = document.createElement('div');
       gtCell.className = 'game-type-cell';
       if (isFilled) {
-        const rd = state.rounds[r];
+        const rd = modeState().rounds[r];
         const gt = getGameType(rd.gameType);
         const abbrEl       = document.createElement('div');
         abbrEl.className   = 'game-type-abbr';
@@ -363,7 +386,7 @@ function renderRows() {
         const callerCount     = (rd.callers || []).length;
         const callerTrunc     = callerCount > 2 ? 3 : 4;
         callersEl.textContent = (rd.callers || [])
-          .map(i => state.playerNames[i].slice(0, callerTrunc)).join('+');
+          .map(i => modeState().playerNames[i].slice(0, callerTrunc)).join('+');
         gtCell.appendChild(abbrEl);
         gtCell.appendChild(callersEl);
       }
@@ -375,7 +398,7 @@ function renderRows() {
       const slCell    = document.createElement('div');
       slCell.className = 'slagen-cell';
       if (isFilled) {
-        const rd       = state.rounds[r];
+        const rd       = modeState().rounds[r];
         const gt       = getGameType(rd.gameType);
         const isWLMode = gt && gt.inputMode === 'wl';
         const complete = isRoundComplete(rd);
@@ -410,12 +433,12 @@ function renderRows() {
 
       const resCell    = document.createElement('div');
       resCell.className = 'result-cell';
-      if (isFilled && isRoundComplete(state.rounds[r])) {
+      if (isFilled && isRoundComplete(modeState().rounds[r])) {
         resCell.classList.add('clickable');
         resCell.addEventListener('click', () => openRoundResultSheet(r));
       }
       if (isFilled) {
-        const rd = state.rounds[r];
+        const rd = modeState().rounds[r];
         const gt = getGameType(rd.gameType);
         if (gt && gt.inputMode === 'wl' && rd.callerResults) {
           const results = (rd.callers || [])
@@ -459,7 +482,7 @@ function renderRows() {
       const cell    = document.createElement('div');
       cell.className = 'score-cell';
       if (isFilled) {
-        const rd       = state.rounds[r];
+        const rd       = modeState().rounds[r];
         const hasScore = !isTournament || isRoundComplete(rd);
         if (hasScore) {
           const delta   = rd.scores[p];
@@ -504,7 +527,7 @@ function renderRows() {
     container.appendChild(row);
   }
 
-  document.getElementById('hint').classList.toggle('show', state.rounds.length > 0);
+  document.getElementById('hint').classList.toggle('show', modeState().rounds.length > 0);
 }
 
 function renderTotals() {
@@ -519,7 +542,7 @@ function renderTotals() {
     totalRow.appendChild(document.createElement('div')); // result
   }
 
-  const allDone  = state.rounds.length === TOTAL_ROUNDS && state.rounds.every(r => isRoundComplete(r));
+  const allDone  = modeState().rounds.length === TOTAL_ROUNDS && modeState().rounds.every(r => isRoundComplete(r));
   const maxScore = Math.max(...totals);
   totals.forEach(t => {
     const cell    = document.createElement('div');
@@ -542,12 +565,12 @@ function renderTotals() {
 }
 
 function renderGameBar() {
-  const r              = state.rounds.length;
-  const completedCount = state.rounds.filter(rd => isRoundComplete(rd)).length;
+  const r              = modeState().rounds.length;
+  const completedCount = modeState().rounds.filter(rd => isRoundComplete(rd)).length;
   document.getElementById('roundIndicator').textContent  = r + ' / 16';
-  document.getElementById('dealerIndicator').textContent = shortName(state.playerNames[completedCount % NUM_PLAYERS]);
-  const lastIncomplete = r > 0 && !isRoundComplete(state.rounds[r - 1]);
-  const allDone = r >= TOTAL_ROUNDS && state.rounds.every(rd => isRoundComplete(rd));
+  document.getElementById('dealerIndicator').textContent = shortName(modeState().playerNames[completedCount % NUM_PLAYERS]);
+  const lastIncomplete = r > 0 && !isRoundComplete(modeState().rounds[r - 1]);
+  const allDone = r >= TOTAL_ROUNDS && modeState().rounds.every(rd => isRoundComplete(rd));
   document.getElementById('addRoundBtn').disabled = r >= TOTAL_ROUNDS || lastIncomplete;
   document.querySelector('.bottom-bar').style.display = allDone ? 'none' : '';
 }
@@ -555,7 +578,7 @@ function renderGameBar() {
 function renderGameOver() {
   const banner = document.getElementById('gameOverBanner');
   const newGameBtn = document.getElementById('newGameBtn');
-  if (state.rounds.length < TOTAL_ROUNDS || !state.rounds.every(r => isRoundComplete(r))) {
+  if (modeState().rounds.length < TOTAL_ROUNDS || !modeState().rounds.every(r => isRoundComplete(r))) {
     banner.classList.remove('show');
     newGameBtn.classList.remove('highlight');
     return;
@@ -564,10 +587,10 @@ function renderGameOver() {
   newGameBtn.classList.add('highlight');
   const { totals } = getRunningTotals();
   const max     = Math.max(...totals);
-  const winners = state.playerNames.filter((_, i) => totals[i] === max);
+  const winners = modeState().playerNames.filter((_, i) => totals[i] === max);
   document.getElementById('gameOverTitle').textContent = winners.join(' & ') + ' wins!';
   document.getElementById('gameOverSub').textContent   =
-    state.playerNames.map((n, i) => shortName(n) + ': ' + totals[i]).join('  ·  ');
+    modeState().playerNames.map((n, i) => shortName(n) + ': ' + totals[i]).join('  ·  ');
 }
 
 // ══════════════════════════════════════════
@@ -580,8 +603,8 @@ function openRoundSheet(roundIndex) {
   manualMode      = false;
   manualValues    = ['', '', '', ''];
 
-  const isEdit       = roundIndex < state.rounds.length;
-  const displayRound = isEdit ? roundIndex + 1 : state.rounds.length + 1;
+  const isEdit       = roundIndex < modeState().rounds.length;
+  const displayRound = isEdit ? roundIndex + 1 : modeState().rounds.length + 1;
 
   document.getElementById('sheetTitle').textContent    = 'Round ' + displayRound;
   document.getElementById('sheetSubtitle').textContent = isEdit
@@ -589,7 +612,7 @@ function openRoundSheet(roundIndex) {
     : 'Select who played and enter their score';
 
   if (isEdit) {
-    const scores     = state.rounds[roundIndex].scores;
+    const scores     = modeState().rounds[roundIndex].scores;
     const posPlayers = scores.map((s, i) => s > 0 ? i : -1).filter(i => i >= 0);
     if (posPlayers.length >= 1 && posPlayers.length <= 2) {
       selectedPlayers = posPlayers;
@@ -615,7 +638,7 @@ function openRoundSheet(roundIndex) {
 function buildPlayerSelectGrid() {
   const grid    = document.getElementById('playerSelectGrid');
   grid.innerHTML = '';
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const btn       = document.createElement('button');
     btn.className   = 'player-select-btn' + (selectedPlayers.includes(i) ? ' selected' : '');
     btn.textContent = name;
@@ -721,7 +744,7 @@ function updatePreview() {
   const grid    = document.getElementById('previewGrid');
   grid.innerHTML = '';
   const scores  = computeAutoScores();
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const cell       = document.createElement('div');
     cell.className   = 'preview-player';
     const nameEl       = document.createElement('div');
@@ -741,7 +764,7 @@ function updateManualPreview() {
   document.getElementById('previewBox').style.visibility = 'visible';
   const grid    = document.getElementById('previewGrid');
   grid.innerHTML = '';
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const cell       = document.createElement('div');
     cell.className   = 'preview-player';
     const nameEl       = document.createElement('div');
@@ -768,7 +791,7 @@ function updateManualPreview() {
 function buildManualGrid() {
   const grid    = document.getElementById('manualGrid');
   grid.innerHTML = '';
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const cell    = document.createElement('div');
     cell.className = 'manual-cell';
     const lbl       = document.createElement('div');
@@ -804,14 +827,15 @@ function validateConfirm() {
 
 function confirmRound() {
   const scores = manualMode ? manualValues.map(v => parseFloat(v)) : computeAutoScores();
-  if (editingRound < state.rounds.length) {
-    state.rounds[editingRound] = { scores };
+  if (editingRound < modeState().rounds.length) {
+    modeState().rounds[editingRound] = { scores };
   } else {
-    state.rounds.push({ scores });
+    modeState().rounds.push({ scores });
   }
   saveState();
   closeOverlay('roundOverlay');
   renderAll();
+  if (autoScrollEnabled) scrollToCurrentRound();
 }
 
 // ══════════════════════════════════════════
@@ -822,7 +846,7 @@ function openSettingsSheet() { openOverlay('settingsOverlay'); }
 function openRenameSheet() {
   const inputs    = document.getElementById('renameInputs');
   inputs.innerHTML = '';
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const row    = document.createElement('div');
     row.className = 'rename-row';
     const lbl       = document.createElement('label');
@@ -832,7 +856,7 @@ function openRenameSheet() {
     inp.className = 'rename-input';
     inp.type      = 'text';
     inp.value     = name;
-    inp.maxLength = 20;
+    inp.maxLength = 14;
     row.appendChild(lbl);
     row.appendChild(inp);
     inputs.appendChild(row);
@@ -844,7 +868,7 @@ function openRenameSheet() {
 function saveNames() {
   document.querySelectorAll('#renameInputs .rename-input').forEach((inp, i) => {
     const val = inp.value.trim();
-    if (val) state.playerNames[i] = val;
+    if (val) modeState().playerNames[i] = val;
   });
   saveState();
   closeOverlay('renameOverlay');
@@ -856,7 +880,7 @@ function saveNames() {
 // ══════════════════════════════════════════
 function newGame()   { openOverlay('confirmOverlay'); }
 function doNewGame() {
-  state.rounds = [];
+  modeState().rounds = [];
   saveState();
   closeOverlay('confirmOverlay');
   renderAll();
@@ -875,14 +899,14 @@ function scrollToCurrentRound() {
 }
 
 function openRoundResultSheet(roundIndex) {
-  const rd  = state.rounds[roundIndex];
+  const rd  = modeState().rounds[roundIndex];
   if (!rd || !isRoundComplete(rd)) return;
   const gt  = getGameType(rd.gameType);
   const { runningPerRound } = getRunningTotals();
 
   document.getElementById('rrTitle').textContent = 'Round ' + (roundIndex + 1) + ' result';
 
-  const callerNames = (rd.callers || []).map(i => shortName(state.playerNames[i])).join(' + ');
+  const callerNames = (rd.callers || []).map(i => shortName(modeState().playerNames[i])).join(' + ');
   let sub = gt ? gt.label : '';
   if (callerNames) sub += ' · ' + callerNames;
   if (rd.slagen !== null && rd.slagen !== undefined) sub += ' · ' + rd.slagen + ' tricks';
@@ -891,7 +915,7 @@ function openRoundResultSheet(roundIndex) {
   const scoresEl = document.getElementById('rrScores');
   scoresEl.innerHTML = '';
   const running = runningPerRound[roundIndex] || [0, 0, 0, 0];
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const delta   = rd.scores[i];
     const cell    = document.createElement('div');
     cell.className = 'rr-player';
@@ -922,8 +946,8 @@ function openRoundResultSheet(roundIndex) {
 // ══════════════════════════════════════════
 function openTournRoundSheet(roundIndex) {
   tournEditingRound = roundIndex;
-  const isEdit       = roundIndex < state.rounds.length;
-  const displayRound = isEdit ? roundIndex + 1 : state.rounds.length + 1;
+  const isEdit       = roundIndex < modeState().rounds.length;
+  const displayRound = isEdit ? roundIndex + 1 : modeState().rounds.length + 1;
 
   document.getElementById('tournSheetTitle').textContent = 'Round ' + displayRound;
   document.getElementById('tournSheetSub').textContent   = isEdit
@@ -931,7 +955,7 @@ function openTournRoundSheet(roundIndex) {
     : 'Select the caller(s) and game type';
 
   if (isEdit) {
-    const rd      = state.rounds[roundIndex];
+    const rd      = modeState().rounds[roundIndex];
     tournCallers  = [...(rd.callers || [])];
     tournGameType = rd.gameType || null;
   } else {
@@ -948,7 +972,7 @@ function openTournRoundSheet(roundIndex) {
 function buildTournCallerGrid() {
   const grid    = document.getElementById('tournCallerGrid');
   grid.innerHTML = '';
-  state.playerNames.forEach((name, i) => {
+  modeState().playerNames.forEach((name, i) => {
     const btn       = document.createElement('button');
     btn.className   = 'caller-btn' + (tournCallers.includes(i) ? ' selected' : '');
     btn.textContent = name;
@@ -1016,8 +1040,8 @@ function validateTournConfirm() {
 }
 
 function confirmTournRound() {
-  const isEdit   = tournEditingRound < state.rounds.length;
-  const prev     = isEdit ? state.rounds[tournEditingRound] : null;
+  const isEdit   = tournEditingRound < modeState().rounds.length;
+  const prev     = isEdit ? modeState().rounds[tournEditingRound] : null;
   const sameType = prev && prev.gameType === tournGameType;
   const newRound = {
     callers:       [...tournCallers],
@@ -1027,14 +1051,14 @@ function confirmTournRound() {
     result:        sameType ? prev.result        : null,
     scores:        sameType ? prev.scores        : [0, 0, 0, 0],
   };
-  if (isEdit) state.rounds[tournEditingRound] = newRound;
-  else        state.rounds.push(newRound);
+  if (isEdit) modeState().rounds[tournEditingRound] = newRound;
+  else        modeState().rounds.push(newRound);
   saveState();
   closeOverlay('tournRoundOverlay');
   renderAll();
   // For new rounds, jump straight into slagen/WL entry
   if (!isEdit) {
-    const newIdx = state.rounds.length - 1;
+    const newIdx = modeState().rounds.length - 1;
     const gt     = getGameType(tournGameType);
     if (gt && gt.inputMode === 'wl') openWLPicker(newIdx);
     else                             openSlagenPicker(newIdx);
@@ -1046,7 +1070,7 @@ function confirmTournRound() {
 // ══════════════════════════════════════════
 function openSlagenPicker(roundIndex) {
   slagenRoundIndex = roundIndex;
-  const rd = state.rounds[roundIndex];
+  const rd = modeState().rounds[roundIndex];
   slagenSelected   = rd.slagen;
   const gt         = getGameType(rd.gameType);
   document.getElementById('slagenTitle').textContent    = 'Slagen — Round ' + (roundIndex + 1);
@@ -1076,7 +1100,7 @@ function buildSlagenGrid() {
 }
 
 function confirmSlagen() {
-  const rd       = state.rounds[slagenRoundIndex];
+  const rd       = modeState().rounds[slagenRoundIndex];
   rd.slagen      = slagenSelected;
   rd.result      = calcResultFromSlagen(rd.gameType, slagenSelected);
   rd.callerResults = null;
@@ -1092,7 +1116,7 @@ function confirmSlagen() {
 // ══════════════════════════════════════════
 function openWLPicker(roundIndex) {
   wlRoundIndex = roundIndex;
-  const rd     = state.rounds[roundIndex];
+  const rd     = modeState().rounds[roundIndex];
   wlResults    = rd.callerResults ? { ...rd.callerResults } : {};
   const gt     = getGameType(rd.gameType);
   document.getElementById('slagenTitle').textContent    = 'Result — Round ' + (roundIndex + 1);
@@ -1112,7 +1136,7 @@ function buildWLPickerContent(callers) {
     row.className = 'wl-caller-row';
     const nameEl       = document.createElement('div');
     nameEl.className   = 'wl-caller-name';
-    nameEl.textContent = state.playerNames[idx];
+    nameEl.textContent = modeState().playerNames[idx];
     const pair    = document.createElement('div');
     pair.className = 'wl-btn-pair';
     ['W', 'L'].forEach(val => {
@@ -1139,7 +1163,7 @@ function validateWLConfirm(callers) {
 }
 
 function confirmWL() {
-  const rd         = state.rounds[wlRoundIndex];
+  const rd         = modeState().rounds[wlRoundIndex];
   rd.callerResults = { ...wlResults };
   rd.slagen        = null;
   rd.result        = combinedResult(rd.callerResults, rd.callers || []);
@@ -1159,12 +1183,32 @@ document.querySelectorAll('.overlay').forEach(ov => {
   ov.addEventListener('click', e => { if (e.target === ov) closeOverlay(ov.id); });
 });
 
-// Header
-document.getElementById('modeSwitchInput').addEventListener('change', e => {
-  state.mode = e.target.checked ? 'tournament' : 'simple';
+// Header — game selector
+function closeGameSelector() {
+  document.getElementById('gameSelectorMenu').classList.remove('open');
+  document.getElementById('gameSelectorBtn').classList.remove('open');
+}
+
+document.getElementById('gameSelectorBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = document.getElementById('gameSelectorMenu').classList.toggle('open');
+  document.getElementById('gameSelectorBtn').classList.toggle('open', isOpen);
+});
+
+document.getElementById('gameSelectorMenu').addEventListener('click', e => {
+  const btn = e.target.closest('.game-selector-option');
+  if (!btn) return;
+  state.mode = btn.dataset.mode;
   applyMode(state.mode);
   saveState();
   renderAll();
+  closeGameSelector();
+});
+
+document.addEventListener('mousedown', e => {
+  if (!document.getElementById('gameSelectorWrap').contains(e.target)) {
+    closeGameSelector();
+  }
 });
 document.getElementById('settingsBtn').addEventListener('click', openSettingsSheet);
 
@@ -1180,8 +1224,8 @@ document.getElementById('fitBtn').addEventListener('click', () => {
 // Game bar
 document.getElementById('newGameBtn').addEventListener('click', newGame);
 document.getElementById('addRoundBtn').addEventListener('click', () => {
-  if (state.mode === 'tournament') openTournRoundSheet(state.rounds.length);
-  else                             openRoundSheet(state.rounds.length);
+  if (state.mode === 'tournament') openTournRoundSheet(modeState().rounds.length);
+  else                             openRoundSheet(modeState().rounds.length);
 });
 
 // Simple round sheet
