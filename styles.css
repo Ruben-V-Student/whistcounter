@@ -185,6 +185,17 @@ body {
   white-space: nowrap;
 }
 .new-game-btn:active { background: var(--surface2); }
+.new-game-btn.highlight {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  animation: pulse-btn 2s ease-in-out infinite;
+}
+.new-game-btn.highlight:active { background: var(--accent); opacity: 0.85; }
+@keyframes pulse-btn {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
 
 /* ══════════════════════════════════════════
    GAME OVER BANNER
@@ -193,19 +204,21 @@ body {
   background: var(--accent-light);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  padding: 16px 20px;
+  padding: 10px 16px;
   flex-shrink: 0;
-  text-align: center;
   display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
 }
-.game-over-banner.show { display: block; }
+.game-over-banner.show { display: flex; }
 .game-over-title {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 22px;
+  font-size: 20px;
   color: var(--accent);
-  margin-bottom: 4px;
 }
-.game-over-sub { font-size: 13px; color: var(--text2); }
+.game-over-sub { font-size: 12px; color: var(--text2); }
 
 /* ══════════════════════════════════════════
    SCORE TABLE  (middle island)
@@ -502,11 +515,12 @@ body {
 .slagen-dot {
   width: 18px; height: 18px;
   border-radius: 50%;
-  border: 1.5px dashed var(--border);
+  border: 2px dashed var(--text3);
   display: flex; align-items: center; justify-content: center;
   transition: border-color 0.15s;
+  opacity: 0.7;
 }
-.slagen-cell:active .slagen-dot { border-color: var(--accent); }
+.slagen-cell:active .slagen-dot { border-color: var(--accent); opacity: 1; }
 
 /* Result (W/L) column */
 .result-hdr {
@@ -528,12 +542,14 @@ body {
 .result-badge {
   font-size: 10px;
   font-weight: 700;
-  width: 18px; height: 18px;
-  border-radius: 3px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
 .result-badge.win  { background: var(--accent-light); color: var(--accent); }
-.result-badge.loss { background: var(--neg-light);    color: var(--neg);    }
+.result-badge.loss { background: var(--neg-light);    color: var(--neg); }
+.result-cell.result-win  { background: var(--accent-light); }
+.result-cell.result-loss { background: var(--neg-light); }
 
 /* Compact overrides for tournament extra cells */
 .compact .game-type-cell { min-height: unset; padding: 1px 2px; }
@@ -632,6 +648,53 @@ body {
   transition: color 0.15s;
 }
 .cancel-btn:active { color: var(--text); }
+
+/* ══════════════════════════════════════════
+   ROUND RESULT SHEET
+══════════════════════════════════════════ */
+.rr-scores {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 16px 20px 0;
+}
+.rr-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.rr-name {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rr-delta {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1;
+}
+.rr-delta.pos  { color: var(--accent); }
+.rr-delta.neg  { color: var(--neg); }
+.rr-delta.zero { color: var(--text3); }
+.rr-total {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 500;
+}
+/* Result cell is clickable on completed rounds */
+.result-cell.clickable { cursor: pointer; }
+.result-cell.clickable:active { opacity: 0.7; }
 
 /* ══════════════════════════════════════════
    SIMPLE MODE — ROUND ENTRY SHEET
@@ -971,8 +1034,8 @@ body {
 .wl-caller-name { flex: 1; font-size: 15px; color: var(--text); }
 .wl-btn-pair    { display: flex; gap: 8px; }
 .wl-btn {
-  width: 52px; height: 40px;
-  border-radius: var(--radius-sm);
+  width: 44px; height: 44px;
+  border-radius: 4px;
   border: 1.5px solid var(--border);
   background: var(--surface);
   font-family: 'DM Sans', sans-serif;
@@ -984,6 +1047,6 @@ body {
 }
 .wl-btn.w-btn      { color: var(--accent); border-color: var(--accent); }
 .wl-btn.l-btn      { color: var(--neg);    border-color: var(--neg);    }
-.wl-btn.w-btn.sel  { background: var(--accent); color: #fff; }
-.wl-btn.l-btn.sel  { background: var(--neg);    color: #fff; }
+.wl-btn.w-btn.sel  { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.wl-btn.l-btn.sel  { background: var(--neg-light);    color: var(--neg);    border-color: var(--neg); }
 .wl-btn:active     { opacity: 0.75; }

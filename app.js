@@ -56,6 +56,9 @@ let slagenSelected   = null;
 let wlRoundIndex = -1;
 let wlResults    = {};
 
+// Auto-scroll: true when the current empty row is visible in #roundRows
+let autoScrollEnabled = true;
+
 // ══════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════
@@ -387,9 +390,14 @@ function renderRows() {
           dot.className = 'slagen-dot';
           slCell.appendChild(dot);
         } else if (isWLMode) {
-          const ck           = document.createElement('div');
-          ck.style.cssText   = 'font-size:13px;color:var(--text3)';
-          ck.textContent     = '✓';
+          const callerRes = rd.callerResults || {};
+          const wlResults2 = (rd.callers || []).map(c => callerRes[c]).filter(Boolean);
+          const allW2 = wlResults2.length > 0 && wlResults2.every(rv => rv === 'W');
+          const allL2 = wlResults2.length > 0 && wlResults2.every(rv => rv === 'L');
+          const ck         = document.createElement('div');
+          const ckSymbol   = allW2 ? '✓' : allL2 ? '✗' : '–';
+          ck.style.cssText = 'font-size:13px;font-weight:600;color:var(--text2)';
+          ck.textContent   = ckSymbol;
           slCell.appendChild(ck);
         }
 
@@ -402,6 +410,10 @@ function renderRows() {
 
       const resCell    = document.createElement('div');
       resCell.className = 'result-cell';
+      if (isFilled && isRoundComplete(state.rounds[r])) {
+        resCell.classList.add('clickable');
+        resCell.addEventListener('click', () => openRoundResultSheet(r));
+      }
       if (isFilled) {
         const rd = state.rounds[r];
         const gt = getGameType(rd.gameType);
@@ -409,24 +421,30 @@ function renderRows() {
           const results = (rd.callers || [])
             .map(c => rd.callerResults[c]).filter(Boolean);
           if (results.length === 1) {
+            const allW = results[0] === 'W';
+            if (allW) resCell.classList.add('result-win');
+            else      resCell.classList.add('result-loss');
             const badge       = document.createElement('div');
             badge.className   = 'result-badge ' + (results[0] === 'W' ? 'win' : 'loss');
             badge.textContent = results[0];
             resCell.appendChild(badge);
           } else if (results.length > 1) {
-            const badgePx       = results.length > 2 ? 9 : 13;
-            const wrap          = document.createElement('div');
-            wrap.style.cssText  = 'display:flex;flex-direction:row;gap:1px;align-items:center;justify-content:center';
+            resCell.style.position = 'relative';
+            resCell.style.padding  = '0';
+            const wrap         = document.createElement('div');
+            wrap.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:row;overflow:hidden;gap:1px;background:var(--border)';
+            const fs           = results.length > 2 ? '9px' : '11px';
             results.forEach(rv => {
-              const mini          = document.createElement('div');
-              mini.className      = 'result-badge ' + (rv === 'W' ? 'win' : 'loss');
-              mini.style.cssText  = `width:${badgePx}px;height:${badgePx}px;font-size:${badgePx - 4}px;border-radius:2px;padding:0`;
-              mini.textContent    = rv;
-              wrap.appendChild(mini);
+              const isW            = rv === 'W';
+              const sliver         = document.createElement('div');
+              sliver.style.cssText = `flex:1;height:100%;display:flex;align-items:center;justify-content:center;font-size:${fs};font-weight:700;background:${isW ? 'var(--accent-light)' : 'var(--neg-light)'};color:${isW ? 'var(--accent)' : 'var(--neg)'}`;
+              sliver.textContent   = rv;
+              wrap.appendChild(sliver);
             });
             resCell.appendChild(wrap);
           }
         } else if (rd.result) {
+          resCell.classList.add(rd.result === 'W' ? 'result-win' : 'result-loss');
           const badge       = document.createElement('div');
           badge.className   = 'result-badge ' + (rd.result === 'W' ? 'win' : 'loss');
           badge.textContent = rd.result;
@@ -524,17 +542,26 @@ function renderTotals() {
 }
 
 function renderGameBar() {
-  const r = state.rounds.length;
+  const r              = state.rounds.length;
+  const completedCount = state.rounds.filter(rd => isRoundComplete(rd)).length;
   document.getElementById('roundIndicator').textContent  = r + ' / 16';
-  document.getElementById('dealerIndicator').textContent = shortName(state.playerNames[r % NUM_PLAYERS]);
+  document.getElementById('dealerIndicator').textContent = shortName(state.playerNames[completedCount % NUM_PLAYERS]);
   const lastIncomplete = r > 0 && !isRoundComplete(state.rounds[r - 1]);
+  const allDone = r >= TOTAL_ROUNDS && state.rounds.every(rd => isRoundComplete(rd));
   document.getElementById('addRoundBtn').disabled = r >= TOTAL_ROUNDS || lastIncomplete;
+  document.querySelector('.bottom-bar').style.display = allDone ? 'none' : '';
 }
 
 function renderGameOver() {
   const banner = document.getElementById('gameOverBanner');
-  if (state.rounds.length < TOTAL_ROUNDS || !state.rounds.every(r => isRoundComplete(r))) { banner.classList.remove('show'); return; }
+  const newGameBtn = document.getElementById('newGameBtn');
+  if (state.rounds.length < TOTAL_ROUNDS || !state.rounds.every(r => isRoundComplete(r))) {
+    banner.classList.remove('show');
+    newGameBtn.classList.remove('highlight');
+    return;
+  }
   banner.classList.add('show');
+  newGameBtn.classList.add('highlight');
   const { totals } = getRunningTotals();
   const max     = Math.max(...totals);
   const winners = state.playerNames.filter((_, i) => totals[i] === max);
@@ -841,6 +868,55 @@ function doNewGame() {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 
+function scrollToCurrentRound() {
+  const container = document.getElementById('roundRows');
+  const current   = container.querySelector('.round-row.current');
+  if (current) current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function openRoundResultSheet(roundIndex) {
+  const rd  = state.rounds[roundIndex];
+  if (!rd || !isRoundComplete(rd)) return;
+  const gt  = getGameType(rd.gameType);
+  const { runningPerRound } = getRunningTotals();
+
+  document.getElementById('rrTitle').textContent = 'Round ' + (roundIndex + 1) + ' result';
+
+  const callerNames = (rd.callers || []).map(i => shortName(state.playerNames[i])).join(' + ');
+  let sub = gt ? gt.label : '';
+  if (callerNames) sub += ' · ' + callerNames;
+  if (rd.slagen !== null && rd.slagen !== undefined) sub += ' · ' + rd.slagen + ' tricks';
+  document.getElementById('rrSub').textContent = sub;
+
+  const scoresEl = document.getElementById('rrScores');
+  scoresEl.innerHTML = '';
+  const running = runningPerRound[roundIndex] || [0, 0, 0, 0];
+  state.playerNames.forEach((name, i) => {
+    const delta   = rd.scores[i];
+    const cell    = document.createElement('div');
+    cell.className = 'rr-player';
+
+    const nameEl       = document.createElement('div');
+    nameEl.className   = 'rr-name';
+    nameEl.textContent = shortName(name);
+
+    const deltaEl       = document.createElement('div');
+    deltaEl.className   = 'rr-delta ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'zero');
+    deltaEl.textContent = (delta > 0 ? '+' : '') + delta;
+
+    const totalEl       = document.createElement('div');
+    totalEl.className   = 'rr-total';
+    totalEl.textContent = running[i];
+
+    cell.appendChild(nameEl);
+    cell.appendChild(deltaEl);
+    cell.appendChild(totalEl);
+    scoresEl.appendChild(cell);
+  });
+
+  openOverlay('roundResultOverlay');
+}
+
 // ══════════════════════════════════════════
 //  TOURNAMENT — ROUND SHEET
 // ══════════════════════════════════════════
@@ -956,6 +1032,13 @@ function confirmTournRound() {
   saveState();
   closeOverlay('tournRoundOverlay');
   renderAll();
+  // For new rounds, jump straight into slagen/WL entry
+  if (!isEdit) {
+    const newIdx = state.rounds.length - 1;
+    const gt     = getGameType(tournGameType);
+    if (gt && gt.inputMode === 'wl') openWLPicker(newIdx);
+    else                             openSlagenPicker(newIdx);
+  }
 }
 
 // ══════════════════════════════════════════
@@ -1001,6 +1084,7 @@ function confirmSlagen() {
   saveState();
   closeOverlay('slagenOverlay');
   renderAll();
+  if (autoScrollEnabled) scrollToCurrentRound();
 }
 
 // ══════════════════════════════════════════
@@ -1063,6 +1147,7 @@ function confirmWL() {
   saveState();
   closeOverlay('slagenOverlay');
   renderAll();
+  if (autoScrollEnabled) scrollToCurrentRound();
 }
 
 // ══════════════════════════════════════════
@@ -1160,6 +1245,19 @@ document.getElementById('cancelNewGameBtn').addEventListener('click', () => clos
 // Tournament round sheet
 document.getElementById('tournConfirmBtn').addEventListener('click', confirmTournRound);
 document.getElementById('tournCancelBtn').addEventListener('click', () => closeOverlay('tournRoundOverlay'));
+
+// Round result sheet
+document.getElementById('rrCloseBtn').addEventListener('click', () => closeOverlay('roundResultOverlay'));
+
+// Auto-scroll: track whether the current empty row is visible
+document.getElementById('roundRows').addEventListener('scroll', () => {
+  const container  = document.getElementById('roundRows');
+  const currentRow = container.querySelector('.round-row.current');
+  if (!currentRow) { autoScrollEnabled = true; return; }
+  const rr = currentRow.getBoundingClientRect();
+  const cr = container.getBoundingClientRect();
+  autoScrollEnabled = rr.top >= cr.top - 5 && rr.bottom <= cr.bottom + 5;
+}, { passive: true });
 
 // Slagen / W·L picker — route confirm based on active panel
 document.getElementById('slagenConfirmBtn').addEventListener('click', () => {

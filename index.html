@@ -143,7 +143,7 @@
     <!-- W/L per-caller picker, shown for wl-mode game types -->
     <div id="wlPickerContent" style="display:none"></div>
     <button class="confirm-btn" id="slagenConfirmBtn" disabled style="margin-top:12px">Confirm</button>
-    <button class="cancel-btn"  id="slagenCancelBtn">Cancel</button>
+    <button class="cancel-btn"  id="slagenCancelBtn">Exit</button>
   </div>
 </div>
 
@@ -203,6 +203,18 @@
     <div class="sheet-subtitle">This will clear all scores for the current game. Player names will be kept.</div>
     <button class="confirm-btn" id="confirmNewGameBtn" style="margin-top:20px;background:var(--neg)">Yes, start new game</button>
     <button class="cancel-btn"  id="cancelNewGameBtn">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ══ ROUND RESULT SHEET ══ -->
+<div class="overlay" id="roundResultOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="rrTitle">Round 1 result</div>
+    <div class="sheet-subtitle" id="rrSub"></div>
+    <div class="rr-scores" id="rrScores"></div>
+    <button class="cancel-btn" id="rrCloseBtn" style="margin-top:20px">Close</button>
   </div>
 </div>
 
