@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Whist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="header">
+  <div class="header-title">Whist</div>
+  <div class="mode-toggle-wrap">
+    <span class="mode-lbl active" id="simpleModeLabel">Simple</span>
+    <label class="mode-switch">
+      <input type="checkbox" id="modeSwitchInput">
+      <span class="mode-track-bar"></span>
+    </label>
+    <span class="mode-lbl" id="tournModeLabel">Tourn.</span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn fit-btn" id="fitBtn" title="Fit to screen">⊞</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+  </div>
+</div>
+
+<!-- ══ MAIN (3-island layout) ══ -->
+<div class="main">
+
+  <!-- Top island: game info bar -->
+  <div class="game-bar">
+    <div>
+      <div class="game-bar-label">Round</div>
+      <div class="game-bar-value" id="roundIndicator">— / 16</div>
+    </div>
+    <div class="game-bar-divider"></div>
+    <div>
+      <div class="game-bar-label">Dealer</div>
+      <div class="game-bar-value" id="dealerIndicator">—</div>
+    </div>
+    <button class="new-game-btn" id="newGameBtn">New game</button>
+  </div>
+
+  <!-- Game over banner -->
+  <div class="game-over-banner" id="gameOverBanner">
+    <div class="game-over-title" id="gameOverTitle">Game over</div>
+    <div class="game-over-sub"   id="gameOverSub"></div>
+  </div>
+
+  <!-- Middle island: score table -->
+  <div class="score-table" id="scoreTable">
+    <div class="player-header" id="playerHeader">
+      <div class="player-header-cell"></div>
+      <!-- player header cells injected by JS -->
+    </div>
+    <div id="roundRows">
+      <!-- round rows injected by JS -->
+    </div>
+    <div class="total-row" id="totalRow">
+      <div class="total-cell"></div>
+      <!-- total cells injected by JS -->
+    </div>
+  </div>
+
+  <!-- Bottom island: action button -->
+  <div class="bottom-bar">
+    <button class="add-round-btn" id="addRoundBtn">Add round</button>
+    <div class="hint" id="hint">Long-press a row to edit it</div>
+  </div>
+
+</div><!-- /.main -->
+
+
+<!-- ══ SIMPLE MODE — ROUND ENTRY SHEET ══ -->
+<div class="overlay" id="roundOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"    id="sheetTitle">Round 1</div>
+    <div class="sheet-subtitle" id="sheetSubtitle">Select players who played this round and enter their score</div>
+
+    <div class="sheet-section">
+      <div class="sheet-section-label">Who played? (select 1 or 2)</div>
+      <div class="player-select-grid" id="playerSelectGrid"></div>
+    </div>
+
+    <div class="sheet-section" id="scoreSection">
+      <div class="sheet-section-label">Points won / lost</div>
+      <div class="score-quick-grid" id="scorePosGrid"></div>
+      <div style="height:8px"></div>
+      <div class="score-quick-grid" id="scoreNegGrid"></div>
+      <div class="custom-score-row">
+        <input class="custom-score-input" id="customScoreInput" type="number" placeholder="Custom score (e.g. +7 or -9)">
+      </div>
+    </div>
+
+    <label class="override-toggle" id="overrideToggleRow">
+      <input type="checkbox" id="overrideCheckbox">
+      <div class="toggle-track"></div>
+      <span class="toggle-label">Manual override (custom distribution)</span>
+    </label>
+
+    <div class="manual-grid" id="manualGrid" style="display:none"></div>
+    <div class="sum-warning"  id="sumWarning">⚠ Scores must sum to zero</div>
+
+    <div class="preview-box" id="previewBox" style="visibility:hidden">
+      <div class="preview-label">Preview</div>
+      <div class="preview-grid" id="previewGrid"></div>
+    </div>
+
+    <button class="confirm-btn" id="confirmBtn" disabled>Confirm round</button>
+    <button class="cancel-btn"  id="cancelBtn">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ══ TOURNAMENT MODE — ROUND ENTRY SHEET ══ -->
+<div class="overlay" id="tournRoundOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"    id="tournSheetTitle">Round 1</div>
+    <div class="sheet-subtitle" id="tournSheetSub">Select the caller(s) and game type</div>
+    <div style="height:12px"></div>
+    <div class="tourn-section-label">Caller(s)</div>
+    <div class="caller-grid" id="tournCallerGrid"></div>
+    <div class="tourn-section-label" id="gtSectionLabel">Game type</div>
+    <div class="game-type-select-grid" id="tournGameTypeGrid"></div>
+    <button class="confirm-btn" id="tournConfirmBtn" disabled style="margin-top:16px">Start round</button>
+    <button class="cancel-btn"  id="tournCancelBtn">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ══ TOURNAMENT MODE — SLAGEN / W·L PICKER ══ -->
+<div class="overlay" id="slagenOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"    id="slagenTitle">Slagen</div>
+    <div class="sheet-subtitle" id="slagenSubtitle">How many tricks were won?</div>
+    <!-- Numeric slagen picker (1–13) -->
+    <div class="slagen-grid" id="slagenPickerGrid"></div>
+    <!-- W/L per-caller picker, shown for wl-mode game types -->
+    <div id="wlPickerContent" style="display:none"></div>
+    <button class="confirm-btn" id="slagenConfirmBtn" disabled style="margin-top:12px">Confirm</button>
+    <button class="cancel-btn"  id="slagenCancelBtn">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ══ SETTINGS SHEET ══ -->
+<div class="overlay" id="settingsOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Settings</div>
+
+    <div class="settings-item">
+      <div><div class="settings-item-label">Theme</div></div>
+      <div class="theme-options">
+        <div class="theme-opt" data-theme="system" id="themeSystem">Auto</div>
+        <div class="theme-opt" data-theme="light"  id="themeLight">Light</div>
+        <div class="theme-opt" data-theme="dark"   id="themeDark">Dark</div>
+      </div>
+    </div>
+
+    <div class="settings-item" style="cursor:pointer" id="renamePlayersBtn">
+      <div>
+        <div class="settings-item-label">Player names</div>
+        <div class="settings-item-sub">Tap to rename players</div>
+      </div>
+      <span style="color:var(--text3);font-size:18px">›</span>
+    </div>
+
+    <div class="settings-item" style="cursor:pointer" id="clearDataBtn">
+      <div>
+        <div class="settings-item-label" style="color:var(--neg)">Reset all data</div>
+        <div class="settings-item-sub">Clears saved games</div>
+      </div>
+    </div>
+
+    <button class="cancel-btn" id="settingsCloseBtn" style="margin-top:8px">Close</button>
+  </div>
+</div>
+
+
+<!-- ══ RENAME SHEET ══ -->
+<div class="overlay" id="renameOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Rename players</div>
+    <div class="rename-inputs" id="renameInputs"></div>
+    <button class="confirm-btn" id="renameConfirmBtn" style="margin-top:16px">Save names</button>
+    <button class="cancel-btn"  id="renameCancelBtn">Cancel</button>
+  </div>
+</div>
+
+
+<!-- ══ NEW GAME CONFIRM ══ -->
+<div class="overlay" id="confirmOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Start new game?</div>
+    <div class="sheet-subtitle">This will clear all scores for the current game. Player names will be kept.</div>
+    <button class="confirm-btn" id="confirmNewGameBtn" style="margin-top:20px;background:var(--neg)">Yes, start new game</button>
+    <button class="cancel-btn"  id="cancelNewGameBtn">Cancel</button>
+  </div>
+</div>
+
+
+<script src="app.js"></script>
+</body>
+</html>
