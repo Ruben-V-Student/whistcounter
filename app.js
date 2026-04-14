@@ -1,8 +1,8 @@
 // ══════════════════════════════════════════
 //  CONSTANTS
 // ══════════════════════════════════════════
-const POS_SCORES   = [2, 3, 4, 5, 6, 7, 9, 12, 15, 18, 21, 24, 27, 30];
-const NEG_SCORES   = [-2, -3, -4, -5, -6, -7, -9, -12, -15, -18, -21, -24, -27, -30];
+const POS_SCORES   = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 18, 21, 24, 28];
+const NEG_SCORES   = [-2, -3, -4, -5, -6, -7, -8, -10, -12, -14, -15, -16, -18, -21, -24, -28];
 const TOTAL_ROUNDS = 16;
 const NUM_PLAYERS  = 4;
 
@@ -288,6 +288,16 @@ function renderHeader() {
     gtHdr.className   = 'game-type-hdr';
     gtHdr.textContent = 'Game';
     header.appendChild(gtHdr);
+
+    const slHdr       = document.createElement('div');
+    slHdr.className   = 'slagen-hdr';
+    slHdr.textContent = 'Slgn';
+    header.appendChild(slHdr);
+
+    const resHdr       = document.createElement('div');
+    resHdr.className   = 'result-hdr';
+    resHdr.textContent = 'R';
+    header.appendChild(resHdr);
   }
 
   const currentDealer = state.rounds.length % NUM_PLAYERS;
@@ -311,18 +321,6 @@ function renderHeader() {
     cell.appendChild(btn);
     header.appendChild(cell);
   });
-
-  if (isTournament) {
-    const slHdr       = document.createElement('div');
-    slHdr.className   = 'slagen-hdr';
-    slHdr.textContent = 'Slgn';
-    header.appendChild(slHdr);
-
-    const resHdr       = document.createElement('div');
-    resHdr.className   = 'result-hdr';
-    resHdr.textContent = 'R';
-    header.appendChild(resHdr);
-  }
 }
 
 function renderRows() {
@@ -359,41 +357,17 @@ function renderRows() {
         abbrEl.textContent = gt ? gt.abbr : '?';
         const callersEl       = document.createElement('div');
         callersEl.className   = 'game-type-callers';
+        const callerCount     = (rd.callers || []).length;
+        const callerTrunc     = callerCount > 2 ? 3 : 4;
         callersEl.textContent = (rd.callers || [])
-          .map(i => shortName(state.playerNames[i])).join('+');
+          .map(i => state.playerNames[i].slice(0, callerTrunc)).join('+');
         gtCell.appendChild(abbrEl);
         gtCell.appendChild(callersEl);
       }
       row.appendChild(gtCell);
     }
 
-    // Score cells
-    for (let p = 0; p < NUM_PLAYERS; p++) {
-      const cell    = document.createElement('div');
-      cell.className = 'score-cell';
-      if (isFilled) {
-        const rd       = state.rounds[r];
-        const hasScore = !isTournament || isRoundComplete(rd);
-        if (hasScore) {
-          const delta   = rd.scores[p];
-          const running = runningPerRound[r][p];
-
-          const deltaEl       = document.createElement('div');
-          deltaEl.className   = 'score-delta ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'zero');
-          deltaEl.textContent = (delta > 0 ? '+' : '') + delta;
-
-          const runEl       = document.createElement('div');
-          runEl.className   = 'score-running';
-          runEl.textContent = running;
-
-          cell.appendChild(deltaEl);
-          cell.appendChild(runEl);
-        }
-      }
-      row.appendChild(cell);
-    }
-
-    // Tournament: slagen cell + result cell
+    // Tournament: slagen cell + result cell (before player scores)
     if (isTournament) {
       const slCell    = document.createElement('div');
       slCell.className = 'slagen-cell';
@@ -440,12 +414,13 @@ function renderRows() {
             badge.textContent = results[0];
             resCell.appendChild(badge);
           } else if (results.length > 1) {
+            const badgePx       = results.length > 2 ? 9 : 13;
             const wrap          = document.createElement('div');
-            wrap.style.cssText  = 'display:flex;flex-direction:column;gap:1px;align-items:center';
+            wrap.style.cssText  = 'display:flex;flex-direction:row;gap:1px;align-items:center;justify-content:center';
             results.forEach(rv => {
               const mini          = document.createElement('div');
               mini.className      = 'result-badge ' + (rv === 'W' ? 'win' : 'loss');
-              mini.style.cssText  = 'width:14px;height:12px;font-size:8px;border-radius:2px';
+              mini.style.cssText  = `width:${badgePx}px;height:${badgePx}px;font-size:${badgePx - 4}px;border-radius:2px;padding:0`;
               mini.textContent    = rv;
               wrap.appendChild(mini);
             });
@@ -459,6 +434,32 @@ function renderRows() {
         }
       }
       row.appendChild(resCell);
+    }
+
+    // Score cells
+    for (let p = 0; p < NUM_PLAYERS; p++) {
+      const cell    = document.createElement('div');
+      cell.className = 'score-cell';
+      if (isFilled) {
+        const rd       = state.rounds[r];
+        const hasScore = !isTournament || isRoundComplete(rd);
+        if (hasScore) {
+          const delta   = rd.scores[p];
+          const running = runningPerRound[r][p];
+
+          const deltaEl       = document.createElement('div');
+          deltaEl.className   = 'score-delta ' + (delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'zero');
+          deltaEl.textContent = (delta > 0 ? '+' : '') + delta;
+
+          const runEl       = document.createElement('div');
+          runEl.className   = 'score-running';
+          runEl.textContent = running;
+
+          cell.appendChild(deltaEl);
+          cell.appendChild(runEl);
+        }
+      }
+      row.appendChild(cell);
     }
 
     // Long-press to edit filled rows
@@ -494,8 +495,13 @@ function renderTotals() {
   const isTournament  = state.mode === 'tournament';
   totalRow.innerHTML  = '<div class="total-cell"></div>';
 
-  if (isTournament) totalRow.appendChild(document.createElement('div'));
+  if (isTournament) {
+    totalRow.appendChild(document.createElement('div')); // game type
+    totalRow.appendChild(document.createElement('div')); // slagen
+    totalRow.appendChild(document.createElement('div')); // result
+  }
 
+  const allDone  = state.rounds.length === TOTAL_ROUNDS && state.rounds.every(r => isRoundComplete(r));
   const maxScore = Math.max(...totals);
   totals.forEach(t => {
     const cell    = document.createElement('div');
@@ -505,8 +511,8 @@ function renderTotals() {
     lbl.className   = 'total-label';
     lbl.textContent = 'Total';
 
-    const isWinner = state.rounds.length === TOTAL_ROUNDS && t === maxScore;
-    const isLoser  = state.rounds.length === TOTAL_ROUNDS && t < maxScore;
+    const isWinner = allDone && t === maxScore;
+    const isLoser  = allDone && t < maxScore;
     const val       = document.createElement('div');
     val.className   = 'total-score' + (isWinner ? ' winner' : isLoser ? ' loser' : '');
     val.textContent = t;
@@ -515,11 +521,6 @@ function renderTotals() {
     cell.appendChild(val);
     totalRow.appendChild(cell);
   });
-
-  if (isTournament) {
-    totalRow.appendChild(document.createElement('div'));
-    totalRow.appendChild(document.createElement('div'));
-  }
 }
 
 function renderGameBar() {
@@ -532,7 +533,7 @@ function renderGameBar() {
 
 function renderGameOver() {
   const banner = document.getElementById('gameOverBanner');
-  if (state.rounds.length < TOTAL_ROUNDS) { banner.classList.remove('show'); return; }
+  if (state.rounds.length < TOTAL_ROUNDS || !state.rounds.every(r => isRoundComplete(r))) { banner.classList.remove('show'); return; }
   banner.classList.add('show');
   const { totals } = getRunningTotals();
   const max     = Math.max(...totals);
@@ -617,9 +618,16 @@ function updateScoreSection() {
   validateConfirm();
 }
 
+// Scores achievable in 2-caller games (Ask-Accept, Troel, Troela) per the scoring table
+const TWO_PLAYER_VALID = new Set([
+  2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 24, 28,
+  -2, -3, -4, -5, -6, -7, -8, -10, -12, -14, -16, -18,
+]);
+
 function isScoreValid(v) {
   if (selectedPlayers.length === 0) return false;
   if (selectedPlayers.length === 1) return Math.abs(v) % 3 === 0;
+  if (selectedPlayers.length === 2) return TWO_PLAYER_VALID.has(v);
   return true;
 }
 

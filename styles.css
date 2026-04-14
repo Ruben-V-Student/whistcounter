@@ -413,17 +413,27 @@ body {
    TOURNAMENT TABLE
 ══════════════════════════════════════════ */
 .score-table.tournament-mode {
-  margin-left: -16px;
-  width: calc(100% + 32px);
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
+  position: relative;
+  left: calc(50% - min(50vw, 450px));
+  width: min(100vw, 900px);
 }
 .tournament-mode .player-header,
 .tournament-mode .round-row,
 .tournament-mode .total-row {
-  grid-template-columns: 22px 60px repeat(4, 1fr) 34px 26px;
+  grid-template-columns: 22px 60px 34px 30px repeat(4, 1fr);
 }
+/* Vertical divider between meta columns and player score columns */
+.tournament-mode .player-header > div:nth-child(5),
+.tournament-mode .round-row > div:nth-child(5),
+.tournament-mode .total-row > div:nth-child(5) {
+  border-left: 1px solid var(--border);
+}
+/* Smaller names in tournament mode to avoid overlap in tight columns */
+.tournament-mode .player-name-short {
+  font-size: 10px;
+}
+/* Hide custom score input — not needed in simple mode */
+.custom-score-row { display: none; }
 
 /* Game-type column */
 .game-type-hdr {
@@ -456,6 +466,10 @@ body {
   color: var(--text3);
   text-align: center;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 56px;
 }
 
 /* Slagen column */
