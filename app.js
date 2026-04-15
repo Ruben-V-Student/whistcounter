@@ -1046,7 +1046,9 @@ function openTournRoundSheet(roundIndex) {
 function buildTournCallerGrid() {
   const grid    = document.getElementById('tournCallerGrid');
   grid.innerHTML = '';
-  modeState().playerNames.forEach((name, i) => {
+  // Visual order: TL=0, TR=1, BR=2, BL=3 → render indices [0, 1, 3, 2]
+  [0, 1, 3, 2].forEach(i => {
+    const name      = modeState().playerNames[i];
     const btn       = document.createElement('button');
     btn.className   = 'caller-btn' + (tournCallers.includes(i) ? ' selected' : '');
     btn.textContent = name;
@@ -1116,14 +1118,39 @@ function validateTournConfirm() {
 function confirmTournRound() {
   const isEdit   = tournEditingRound < modeState().rounds.length;
   const prev     = isEdit ? modeState().rounds[tournEditingRound] : null;
-  const sameType = prev && prev.gameType === tournGameType;
+
+  const prevGt       = prev ? getGameType(prev.gameType) : null;
+  const newGt        = getGameType(tournGameType);
+  const sameInputMode = prev && prevGt && newGt && prevGt.inputMode === newGt.inputMode;
+
+  let slagen = null, callerResults = null, result = null, scores = [0, 0, 0, 0];
+
+  if (sameInputMode) {
+    slagen        = prev.slagen;
+    callerResults = prev.callerResults;
+    if (newGt.inputMode === 'slagen' && slagen !== null) {
+      // Recalculate scores with new callers + (possibly new) game type
+      scores = calcTournScores(tournGameType, [...tournCallers], slagen, null);
+      result = calcResultFromSlagen(tournGameType, slagen);
+    } else if (newGt.inputMode === 'wl' && callerResults) {
+      // Only recalculate if every new caller already has a recorded result
+      const allHaveResults = tournCallers.every(c => callerResults[c] !== undefined);
+      if (allHaveResults) {
+        scores = calcTournScores(tournGameType, [...tournCallers], null, callerResults);
+        result = combinedResult(callerResults, tournCallers);
+      } else {
+        result = null;
+      }
+    }
+  }
+
   const newRound = {
     callers:       [...tournCallers],
     gameType:      tournGameType,
-    slagen:        sameType ? prev.slagen        : null,
-    callerResults: sameType ? prev.callerResults : null,
-    result:        sameType ? prev.result        : null,
-    scores:        sameType ? prev.scores        : [0, 0, 0, 0],
+    slagen,
+    callerResults,
+    result,
+    scores,
   };
   if (isEdit) modeState().rounds[tournEditingRound] = newRound;
   else        modeState().rounds.push(newRound);
