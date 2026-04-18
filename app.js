@@ -31,6 +31,7 @@ const GAME_TYPES = [
 // Game object:      { id, name, mode, playerNames, rounds }
 let state = {
   theme: 'system',
+  showDealer: true,
   activeGameId: null,
   games: [],
 };
@@ -265,6 +266,7 @@ function loadState() {
     // Already in new multi-game format
     if (saved.games && Array.isArray(saved.games)) {
       state.theme      = saved.theme      || 'system';
+      state.showDealer = saved.showDealer !== undefined ? saved.showDealer : true;
       state.games      = saved.games;
       state.activeGameId = saved.activeGameId || (saved.games[0] && saved.games[0].id) || null;
       if (!state.games.length) initFreshState();
@@ -546,9 +548,10 @@ function renderRows() {
     }
 
     // Score cells
+    const dealer = r % NUM_PLAYERS;
     for (let p = 0; p < NUM_PLAYERS; p++) {
       const cell    = document.createElement('div');
-      cell.className = 'score-cell';
+      cell.className = 'score-cell' + (p === dealer && isFilled && state.showDealer ? ' dealer-cell' : '');
       if (isFilled) {
         const rd       = modeState().rounds[r];
         const hasScore = !isTournament || isRoundComplete(rd);
@@ -563,6 +566,13 @@ function renderRows() {
           const runEl       = document.createElement('div');
           runEl.className   = 'score-running';
           runEl.textContent = running;
+
+          if (p === dealer && state.showDealer) {
+            const badge       = document.createElement('span');
+            badge.className   = 'dealer-badge';
+            badge.textContent = 'D';
+            runEl.appendChild(badge);
+          }
 
           cell.appendChild(deltaEl);
           cell.appendChild(runEl);
@@ -909,7 +919,10 @@ function confirmRound() {
 // ══════════════════════════════════════════
 //  SETTINGS & RENAME SHEETS
 // ══════════════════════════════════════════
-function openSettingsSheet() { openOverlay('settingsOverlay'); }
+function openSettingsSheet() {
+  document.getElementById('showDealerToggle').checked = state.showDealer;
+  openOverlay('settingsOverlay');
+}
 
 function openRenameSheet() {
   const inputs    = document.getElementById('renameInputs');
@@ -1506,6 +1519,11 @@ document.getElementById('overrideCheckbox').addEventListener('change', e => {
 
 // Settings sheet
 document.getElementById('settingsCloseBtn').addEventListener('click', () => closeOverlay('settingsOverlay'));
+document.getElementById('showDealerToggle').addEventListener('change', e => {
+  state.showDealer = e.target.checked;
+  saveState();
+  renderRows();
+});
 document.getElementById('renamePlayersBtn').addEventListener('click', openRenameSheet);
 document.getElementById('clearDataBtn').addEventListener('click', () => {
   if (confirm('Clear all saved data?')) {
