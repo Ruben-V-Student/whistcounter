@@ -63,7 +63,10 @@
       <div class="game-bar-label">Dealer</div>
       <div class="game-bar-value" id="dealerIndicator">—</div>
     </div>
-    <button class="new-game-btn" id="newGameBtn">New game</button>
+    <div class="game-bar-btn-group">
+      <button class="new-game-btn" id="newGameBtn">New game</button>
+      <button class="export-csv-btn" id="exportBtn" style="display:none">Export CSV</button>
+    </div>
   </div>
 
   <!-- Game over banner -->
@@ -249,6 +252,54 @@
     <div class="sheet-subtitle" id="rrSub"></div>
     <div class="rr-scores" id="rrScores"></div>
     <button class="cancel-btn" id="rrCloseBtn" style="margin-top:20px">Close</button>
+  </div>
+</div>
+
+
+<!-- ══ EXPORT SHEET ══ -->
+<div class="overlay" id="exportOverlay">
+  <div class="sheet export-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Export game</div>
+    <div class="sheet-subtitle">Pick a format and download as CSV — perfect for tournament tracking</div>
+
+    <div class="sheet-section">
+      <div class="sheet-section-label">File name</div>
+      <div class="export-filename-row">
+        <input class="export-filename-input" id="exportFilename" type="text" maxlength="60" placeholder="e.g. Table12Round1">
+        <span class="export-filename-ext">.csv</span>
+      </div>
+    </div>
+
+    <div class="export-options">
+
+      <div class="export-option-card" id="exportFullCard">
+        <div class="export-option-header">
+          <div class="export-option-title">Full</div>
+          <button class="export-option-btn" id="exportFullBtn">Download</button>
+        </div>
+        <div class="export-option-desc">Game type, callers and tricks for every round. Each player gets two columns: points won/lost that round and their running total. Ends with a grand total row.</div>
+      </div>
+
+      <div class="export-option-card">
+        <div class="export-option-header">
+          <div class="export-option-title">Scores only</div>
+          <button class="export-option-btn" id="exportScoresBtn">Download</button>
+        </div>
+        <div class="export-option-desc">Round numbers and each player's running total per round. Clean and compact — no game details.</div>
+      </div>
+
+      <div class="export-option-card">
+        <div class="export-option-header">
+          <div class="export-option-title">Summary</div>
+          <button class="export-option-btn" id="exportSummaryBtn">Download</button>
+        </div>
+        <div class="export-option-desc">Just the final result — player names on row 1, end scores on row 2. Four columns, two rows.</div>
+      </div>
+
+    </div>
+
+    <button class="cancel-btn" id="exportCloseBtn" style="margin-top:12px">Close</button>
   </div>
 </div>
 

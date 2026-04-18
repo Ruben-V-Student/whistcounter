@@ -1,323 +1,36 @@
-// ══════════════════════════════════════════
-//  CONSTANTS
-// ══════════════════════════════════════════
-const POS_SCORES   = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 18, 21, 24, 28];
-const NEG_SCORES   = [-2, -3, -4, -5, -6, -7, -8, -10, -12, -14, -15, -16, -18, -21, -24, -28];
-const TOTAL_ROUNDS = 16;
-const NUM_PLAYERS  = 4;
-
-// inputMode 'slagen' → numeric picker  |  'wl' → W/L per caller
-// minCallers/maxCallers control which caller counts unlock this game type
-const GAME_TYPES = [
-  { id: 'ask-accept',   label: 'Ask-Accept',      abbr: 'AA',   maxCallers: 2, inputMode: 'slagen' },
-  { id: 'allone',       label: 'Allone',           abbr: 'Aln',  maxCallers: 1, inputMode: 'slagen' },
-  { id: 'abondance9',   label: 'Abondance 9',      abbr: 'Ab9',  maxCallers: 1, inputMode: 'wl' },
-  { id: 'abondance10',  label: 'Abondance 10',     abbr: 'Ab10', maxCallers: 1, inputMode: 'wl' },
-  { id: 'abondance11',  label: 'Abondance 11',     abbr: 'Ab11', maxCallers: 1, inputMode: 'wl' },
-  { id: 'abondance12',  label: 'Abondance 12',     abbr: 'Ab12', maxCallers: 1, inputMode: 'wl' },
-  { id: 'misery1',      label: 'Misery',           abbr: 'Mis',  minCallers: 1, maxCallers: 3, inputMode: 'wl' },
-  { id: 'misery-table', label: 'Misery on Table',  abbr: 'MisT', minCallers: 1, maxCallers: 3, inputMode: 'wl' },
-  { id: 'troel',        label: 'Troel',            abbr: 'Trl',  maxCallers: 2, inputMode: 'slagen' },
-  { id: 'troela',       label: 'Troela',           abbr: 'TrlA', maxCallers: 2, inputMode: 'slagen' },
-  { id: 'solo',         label: 'Solo',             abbr: 'Solo', maxCallers: 1, inputMode: 'wl' },
-  { id: 'solo-slim',    label: 'Solo Slim',        abbr: 'Slim', maxCallers: 1, inputMode: 'wl' },
-];
+import {
+  POS_SCORES, NEG_SCORES, TOTAL_ROUNDS, NUM_PLAYERS,
+  GAME_TYPES, GAME_LABELS, TWO_PLAYER_VALID,
+} from './constants.js';
+import { getGameType, combinedResult, calcResultFromSlagen, calcTournScores } from './scoring.js';
+import {
+  state, activeGame, currentMode, modeState, shortName,
+  isRoundComplete, getRunningTotals, saveState, loadState, createNewGame,
+} from './state.js';
+import { exportFull, exportScores, exportSummary } from './export.js';
 
 // ══════════════════════════════════════════
-//  STATE
+//  UI STATE  (sheet / picker / scroll)
 // ══════════════════════════════════════════
-// simple round:     { scores: [n,n,n,n] }
-// tournament round: { callers, gameType, slagen, callerResults, result, scores }
-// Game object:      { id, name, mode, playerNames, rounds }
-let state = {
-  theme: 'system',
-  showDealer: true,
-  activeGameId: null,
-  games: [],
-};
-
-function genId() {
-  return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-}
-
-function createNewGame(mode) {
-  return {
-    id: genId(),
-    name: 'Game ' + (state.games.length + 1),
-    mode: mode || 'tournament',
-    playerNames: ['Player 1', 'Player 2', 'Player 3', 'Player 4'],
-    rounds: [],
-  };
-}
-
-function activeGame() {
-  return state.games.find(g => g.id === state.activeGameId) || state.games[0] || null;
-}
-
-function currentMode() {
-  const g = activeGame();
-  return g ? g.mode : 'tournament';
-}
-
-// Returns the data object for the active game
-function modeState() { return activeGame(); }
-
-// Simple-mode sheet state
-let editingRound  = -1;
+let editingRound    = -1;
 let selectedPlayers = [];
 let selectedScore   = null;
 let manualMode      = false;
 let manualValues    = ['', '', '', ''];
 let longPressTimer  = null;
 
-// Tournament sheet state
 let tournEditingRound = -1;
 let tournCallers      = [];
 let tournGameType     = null;
 
-// Slagen picker state
 let slagenRoundIndex = -1;
 let slagenSelected   = null;
 
-// W/L picker state
 let wlRoundIndex = -1;
 let wlResults    = {};
 
 // Auto-scroll: true when the current empty row is visible in #roundRows
 let autoScrollEnabled = true;
-
-// ══════════════════════════════════════════
-//  HELPERS
-// ══════════════════════════════════════════
-function getGameType(id) {
-  return GAME_TYPES.find(g => g.id === id);
-}
-
-function shortName(n) {
-  return n;
-}
-
-/** True when a round has had its result fully entered. */
-function isRoundComplete(rd) {
-  if (currentMode() !== 'tournament') return true;
-  const gt = getGameType(rd.gameType);
-  if (!gt) return rd.slagen !== null;
-  if (gt.inputMode === 'wl') {
-    if (!rd.callerResults) return false;
-    return (rd.callers || []).every(c => rd.callerResults[c] !== undefined);
-  }
-  return rd.slagen !== null;
-}
-
-/** Combine per-caller results into a single W / L / WL display value. */
-function combinedResult(callerResults, callers) {
-  if (!callerResults || !callers.length) return null;
-  const results = callers.map(c => callerResults[c]).filter(Boolean);
-  if (!results.length) return null;
-  if (results.every(r => r === 'W')) return 'W';
-  if (results.every(r => r === 'L')) return 'L';
-  return 'WL';
-}
-
-// ══════════════════════════════════════════
-//  SCORING TABLES  (PUNTENTABEL IWWA 01-10-2025)
-// ══════════════════════════════════════════
-
-// Per-slagen value for each slagen-mode game type (index 0 = slagen 1, index 12 = slagen 13).
-// Allone/Ab9-12/Solo/SoloSlim → SPLIT3:  caller gets value, each defender gets −value/3.
-// Ask-Accept/Troel/Troela     → PER_PLAYER: each caller gets ±value, each defender gets ∓value.
-// Notable: slagen=13 is already the doubled value where applicable (30→60, 7→14, 14→28, 12→24).
-const SLAGEN_TABLE = {
-  //                    1     2     3     4    5    6    7    8    9   10   11   12    13
-  'allone':      [ -30,  -24,  -18,  -12,   6,   9,  12,  15,  18,  21,  24,  27,   60 ],
-  'ask-accept':  [ -18,  -16,  -14,  -12, -10,  -8,  -6,   2,   3,   4,   5,   6,   14 ],
-  'abondance9':  [ -15,  -15,  -15,  -15, -15, -15, -15, -15,  15,  15,  15,  15,   15 ],
-  'abondance10': [ -18,  -18,  -18,  -18, -18, -18, -18, -18, -18,  18,  18,  18,   18 ],
-  'abondance11': [ -24,  -24,  -24,  -24, -24, -24, -24, -24, -24, -24,  24,  24,   24 ],
-  'abondance12': [ -27,  -27,  -27,  -27, -27, -27, -27, -27, -27, -27, -27,  27,   27 ],
-  'troel':       [ -18,  -16,  -14,  -12, -10,  -8,  -6,   4,   6,   8,  10,  12,   28 ],
-  'troela':      [ -20,  -18,  -16,  -14, -12, -10,  -8,  -6,   4,   6,   8,  10,   24 ],
-  'solo':        [ -75,  -75,  -75,  -75, -75, -75, -75, -75, -75, -75, -75, -75,   75 ],
-  'solo-slim':   [ -90,  -90,  -90,  -90, -90, -90, -90, -90, -90, -90, -90, -90,   90 ],
-};
-
-// Games where each caller individually gets ±value and each defender gets ∓value.
-const PER_PLAYER_GAMES = new Set(['ask-accept', 'troel', 'troela']);
-
-// Fixed absolute values for WL-mode single-caller games (SPLIT3 distribution).
-const WL_VALUES = {
-  'abondance9':  15,
-  'abondance10': 18,
-  'abondance11': 24,
-  'abondance12': 27,
-  'solo':        75,
-  'solo-slim':   90,
-};
-
-// Miserie scoring per (numCallers, geslaagd).
-// winner  = score for a calling player who won their contract.
-// loser   = score for a calling player who lost their contract.
-// defender = score for each non-calling player.
-// Basis 21 (Misery). Misery on Table uses 2× these values (basis 42).
-const MISERIE_SCORES = {
-  1: {
-    0: { winner:  0, loser: -21, defender:   7 },
-    1: { winner: 21, loser:   0, defender:  -7 },
-  },
-  2: {
-    0: { winner:  0, loser: -14, defender:  14 },
-    1: { winner: 28, loser: -28, defender:   0 },
-    2: { winner: 14, loser:   0, defender: -14 },
-  },
-  3: {
-    0: { winner:  0, loser:  -7, defender:  21 },
-    1: { winner: 35, loser: -21, defender:   7 },
-    2: { winner: 21, loser: -35, defender:  -7 },
-    3: { winner:  7, loser:   0, defender: -21 },
-  },
-};
-
-// ══════════════════════════════════════════
-//  SCORING FUNCTIONS
-// ══════════════════════════════════════════
-
-/** Return 'W' or 'L' based on the slagen value for slagen-mode games. */
-function calcResultFromSlagen(gameType, slagen) {
-  const table = SLAGEN_TABLE[gameType];
-  if (!table || slagen === null) return null;
-  return table[slagen - 1] > 0 ? 'W' : 'L';
-}
-
-/** Compute the 4-player score array for a completed tournament round. */
-function calcTournScores(gameType, callers, slagen, callerResults) {
-  const scores = [0, 0, 0, 0];
-  const gt = getGameType(gameType);
-  if (!gt) return scores;
-
-  // ── Slagen-mode games ──────────────────────────────────────────────
-  if (gt.inputMode === 'slagen') {
-    if (slagen === null) return scores;
-    const table = SLAGEN_TABLE[gameType];
-    if (!table) return scores;
-    const value = table[slagen - 1];
-
-    if (PER_PLAYER_GAMES.has(gameType)) {
-      // Each caller: +value, each defender: −value  (sum = 0 with 2+2)
-      for (let i = 0; i < 4; i++)
-        scores[i] = callers.includes(i) ? value : -value;
-    } else {
-      // SPLIT3: caller gets full value, 3 defenders each pay −value/3
-      const caller = callers[0];
-      for (let i = 0; i < 4; i++)
-        scores[i] = i === caller ? value : -value / 3;
-    }
-    return scores;
-  }
-
-  // ── WL-mode games ──────────────────────────────────────────────────
-  if (!callerResults) return scores;
-
-  if (gameType === 'misery1' || gameType === 'misery-table') {
-    const basis    = gameType === 'misery-table' ? 42 : 21;
-    const mult     = basis / 21;
-    const nCallers = callers.length;
-    const geslaagd = callers.filter(c => callerResults[c] === 'W').length;
-    const entry    = (MISERIE_SCORES[nCallers] || {})[geslaagd];
-    if (!entry) return scores;
-    for (let i = 0; i < 4; i++) {
-      if (callers.includes(i))
-        scores[i] = (callerResults[i] === 'W' ? entry.winner : entry.loser) * mult;
-      else
-        scores[i] = entry.defender * mult;
-    }
-    return scores;
-  }
-
-  // Abondance / Solo / Solo Slim: single caller, SPLIT3
-  const base = WL_VALUES[gameType];
-  if (base === undefined) return scores;
-  const caller = callers[0];
-  const value  = callerResults[caller] === 'W' ? base : -base;
-  for (let i = 0; i < 4; i++)
-    scores[i] = i === caller ? value : -value / 3;
-  return scores;
-}
-
-// ══════════════════════════════════════════
-//  PERSISTENCE
-// ══════════════════════════════════════════
-function saveState() {
-  try { localStorage.setItem('whist_state', JSON.stringify(state)); } catch (e) {}
-}
-
-function initFreshState() {
-  const game = createNewGame('tournament');
-  game.name = 'Game 1';
-  state.games = [game];
-  state.activeGameId = game.id;
-}
-
-function loadState() {
-  try {
-    const s = localStorage.getItem('whist_state');
-    if (!s) { initFreshState(); return; }
-    const saved = JSON.parse(s);
-
-    // Already in new multi-game format
-    if (saved.games && Array.isArray(saved.games)) {
-      state.theme      = saved.theme      || 'system';
-      state.showDealer = saved.showDealer !== undefined ? saved.showDealer : true;
-      state.games      = saved.games;
-      state.activeGameId = saved.activeGameId || (saved.games[0] && saved.games[0].id) || null;
-      if (!state.games.length) initFreshState();
-      return;
-    }
-
-    // ── Migrate old format ──────────────────────────────────────────────
-    state.theme = saved.theme || 'system';
-    const games = [];
-
-    // Very old flat format: playerNames/rounds at top level
-    if (saved.playerNames || saved.rounds) {
-      const game = createNewGame(saved.mode || 'simple');
-      game.name = 'Game 1';
-      game.playerNames = saved.playerNames || game.playerNames;
-      game.rounds      = saved.rounds      || [];
-      games.push(game);
-    }
-
-    // Newer format: state.simple / state.tournament sub-objects
-    if ((saved.simple || saved.tournament) && games.length === 0) {
-      const activeMode = saved.mode || 'tournament';
-      ['tournament', 'simple'].forEach(mode => {
-        const data = saved[mode];
-        if (data && data.rounds && data.rounds.length > 0) {
-          const game = createNewGame(mode);
-          game.name = games.length === 0 ? 'Game 1' : 'Game 2';
-          game.playerNames = data.playerNames || game.playerNames;
-          game.rounds      = data.rounds;
-          games.push(game);
-        } else if (data && mode === activeMode) {
-          // Active mode even if empty
-          const game = createNewGame(mode);
-          game.name = 'Game 1';
-          game.playerNames = data.playerNames || game.playerNames;
-          game.rounds      = data.rounds || [];
-          games.push(game);
-        }
-      });
-    }
-
-    if (games.length === 0) {
-      initFreshState();
-    } else {
-      state.games = games;
-      const activeMode = saved.mode || 'tournament';
-      const match = games.find(g => g.mode === activeMode) || games[0];
-      state.activeGameId = match.id;
-    }
-  } catch (e) { initFreshState(); }
-}
 
 // ══════════════════════════════════════════
 //  THEME
@@ -339,8 +52,6 @@ function applyTheme(pref) {
 // ══════════════════════════════════════════
 //  GAME SELECTOR
 // ══════════════════════════════════════════
-const GAME_LABELS = { tournament: 'Whist', simple: 'Manual' };
-
 function applyMode(mode) {
   document.getElementById('gameSelectorTitle').textContent = GAME_LABELS[mode] || 'Whist';
   document.getElementById('checkTournament').textContent = mode === 'tournament' ? '✓' : '';
@@ -354,18 +65,6 @@ function applyMode(mode) {
 // ══════════════════════════════════════════
 //  RENDER
 // ══════════════════════════════════════════
-function getRunningTotals() {
-  const totals = [0, 0, 0, 0];
-  const runningPerRound = [];
-  for (const round of modeState().rounds) {
-    if (isRoundComplete(round)) {
-      for (let i = 0; i < 4; i++) totals[i] += round.scores[i];
-    }
-    runningPerRound.push([...totals]);
-  }
-  return { totals, runningPerRound };
-}
-
 function renderAll() {
   renderHeader();
   renderRows();
@@ -659,10 +358,12 @@ function renderGameOver() {
   if (modeState().rounds.length < TOTAL_ROUNDS || !modeState().rounds.every(r => isRoundComplete(r))) {
     banner.classList.remove('show');
     newGameBtn.classList.remove('highlight');
+    document.getElementById('exportBtn').style.display = 'none';
     return;
   }
   banner.classList.add('show');
   newGameBtn.classList.add('highlight');
+  document.getElementById('exportBtn').style.display = '';
   const { totals } = getRunningTotals();
   const max     = Math.max(...totals);
   const winners = modeState().playerNames.filter((_, i) => totals[i] === max);
@@ -745,12 +446,6 @@ function updateScoreSection() {
   updatePreview();
   validateConfirm();
 }
-
-// Scores achievable in 2-caller games (Ask-Accept, Troel, Troela) per the scoring table
-const TWO_PLAYER_VALID = new Set([
-  2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 24, 28,
-  -2, -3, -4, -5, -6, -7, -8, -10, -12, -14, -16, -18,
-]);
 
 function isScoreValid(v) {
   if (selectedPlayers.length === 0) return false;
@@ -962,10 +657,10 @@ function saveNames() {
 function newGame()   { openOverlay('confirmOverlay'); }
 function doNewGame() {
   const cur     = activeGame();
-  const newGame = createNewGame(cur ? cur.mode : 'tournament');
-  if (cur) newGame.playerNames = [...cur.playerNames];
-  state.games.push(newGame);
-  state.activeGameId = newGame.id;
+  const newG = createNewGame(cur ? cur.mode : 'tournament');
+  if (cur) newG.playerNames = [...cur.playerNames];
+  state.games.push(newG);
+  state.activeGameId = newG.id;
   saveState();
   closeOverlay('confirmOverlay');
   applyMode(currentMode());
@@ -985,6 +680,9 @@ function scrollToCurrentRound() {
   if (current) current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ══════════════════════════════════════════
+//  ROUND RESULT SHEET
+// ══════════════════════════════════════════
 function openRoundResultSheet(roundIndex) {
   const rd  = modeState().rounds[roundIndex];
   if (!rd || !isRoundComplete(rd)) return;
@@ -1142,11 +840,9 @@ function confirmTournRound() {
     slagen        = prev.slagen;
     callerResults = prev.callerResults;
     if (newGt.inputMode === 'slagen' && slagen !== null) {
-      // Recalculate scores with new callers + (possibly new) game type
       scores = calcTournScores(tournGameType, [...tournCallers], slagen, null);
       result = calcResultFromSlagen(tournGameType, slagen);
     } else if (newGt.inputMode === 'wl' && callerResults) {
-      // Only recalculate if every new caller already has a recorded result
       const allHaveResults = tournCallers.every(c => callerResults[c] !== undefined);
       if (allHaveResults) {
         scores = calcTournScores(tournGameType, [...tournCallers], null, callerResults);
@@ -1328,7 +1024,6 @@ function renderSidebar() {
       switchToGame(game.id);
     });
 
-    // Info block
     const info       = document.createElement('div');
     info.className   = 'sidebar-game-info';
 
@@ -1353,12 +1048,10 @@ function renderSidebar() {
     info.appendChild(nameWrap);
     info.appendChild(meta);
 
-    // Mode badge
     const badge       = document.createElement('span');
     badge.className   = 'sidebar-game-badge ' + (game.mode === 'tournament' ? 'badge-w' : 'badge-m');
     badge.textContent = game.mode === 'tournament' ? 'Whist' : 'Manual';
 
-    // Delete button
     const del       = document.createElement('button');
     del.className   = 'sidebar-game-delete';
     del.title       = 'Delete game';
@@ -1423,6 +1116,19 @@ function deleteGame(gameId) {
   }
   saveState();
   renderSidebar();
+}
+
+// ══════════════════════════════════════════
+//  EXPORT SHEET
+// ══════════════════════════════════════════
+function openExportSheet() {
+  document.getElementById('exportFilename').value = activeGame().name || '';
+  document.getElementById('exportFullCard').style.display = currentMode() === 'tournament' ? '' : 'none';
+  openOverlay('exportOverlay');
+}
+
+function getExportFilename() {
+  return document.getElementById('exportFilename').value.trim() || activeGame().name || 'whist-export';
 }
 
 // ══════════════════════════════════════════
@@ -1575,6 +1281,22 @@ document.getElementById('slagenConfirmBtn').addEventListener('click', () => {
   else confirmWL();
 });
 document.getElementById('slagenCancelBtn').addEventListener('click', () => closeOverlay('slagenOverlay'));
+
+// Export sheet
+document.getElementById('exportBtn').addEventListener('click', openExportSheet);
+document.getElementById('exportCloseBtn').addEventListener('click', () => closeOverlay('exportOverlay'));
+document.getElementById('exportFullBtn').addEventListener('click', () => {
+  exportFull(getExportFilename());
+  closeOverlay('exportOverlay');
+});
+document.getElementById('exportScoresBtn').addEventListener('click', () => {
+  exportScores(getExportFilename());
+  closeOverlay('exportOverlay');
+});
+document.getElementById('exportSummaryBtn').addEventListener('click', () => {
+  exportSummary(getExportFilename());
+  closeOverlay('exportOverlay');
+});
 
 // ══════════════════════════════════════════
 //  INIT

@@ -1307,3 +1307,116 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ══════════════════════════════════════════
+   GAME BAR — button group
+══════════════════════════════════════════ */
+.game-bar-btn-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════
+   EXPORT CSV BUTTON  (game bar)
+══════════════════════════════════════════ */
+.export-csv-btn {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.export-csv-btn:active { background: var(--accent-light); }
+
+/* ══════════════════════════════════════════
+   EXPORT SHEET
+══════════════════════════════════════════ */
+.export-sheet { max-height: 95vh; }
+
+.export-filename-row {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.export-filename-row:focus-within { border-color: var(--accent); }
+
+.export-filename-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.export-filename-input::placeholder { color: var(--text3); }
+
+.export-filename-ext {
+  padding: 0 14px 0 6px;
+  font-size: 13px;
+  color: var(--text3);
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.export-options {
+  padding: 16px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-option-card {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  background: var(--surface2);
+}
+
+.export-option-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 12px;
+}
+
+.export-option-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.export-option-desc {
+  font-size: 12px;
+  color: var(--text3);
+  line-height: 1.55;
+}
+
+.export-option-btn {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.export-option-btn:active { opacity: 0.8; }
